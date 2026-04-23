@@ -1,0 +1,318 @@
+<div class="app-container">
+    <header class="navbar">
+      <div class="nav-left">
+        <div class="logo" @click="resetView">
+          Fitt2.bg
+        </div>
+
+        <div class="dropdown" v-if="currentView !== 'checkout'">
+          <span class="nav-item">КАТЕГОРИИ ▼</span>
+          <ul class="dropdown-menu">
+            <li @click="selectCategory('Всички')">Всички продукти</li>
+            <li @click="selectCategory('Хранителни добавки')">Хранителни добавки</li>
+            <li @click="selectCategory('Фитнес уреди')">Фитнес уреди</li>
+            <li @click="selectCategory('Фитнес облекло')">Фитнес облекло</li>
+            <li @click="selectCategory('Аксесоари')">Аксесоари</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="nav-right">
+        <div v-if="!isAdminLoggedIn" class="wishlist-nav-link" @click="currentView = 'favorites'">
+          <span class="heart-icon-nav">❤</span>
+          <span v-if="wishlist.length > 0" class="badge-dot-only"></span>
+          <span class="cart-text">Любими</span>
+        </div>
+
+        <div v-if="!isAdminLoggedIn && currentView !== 'checkout'" class="cart-wrapper" @click="showCart = true">
+          <div class="cart-icon-container">
+            <span class="cart-icon">🛒</span>
+            <span v-if="cart.length > 0" class="badge-dot-only"></span>
+          </div>
+          <span class="cart-text">Количка</span>
+        </div>
+        
+        <button v-if="!isAdminLoggedIn && !isUserLoggedIn" @click="showAdminModal = true" class="btn-admin-plus" title="Вход за администратор">➕</button>
+        <button v-if="!isAdminLoggedIn && !isUserLoggedIn" @click="showUserModal = true" class="btn-login-nav">Вход</button>
+        
+        <button v-if="isAdminLoggedIn" @click="logout" class="btn-logout-nav">Изход (Админ)</button>
+        <button v-if="isUserLoggedIn" @click="logout" class="btn-logout-nav">Изход</button>
+      </div>
+    </header>
+
+    <section v-if="(currentView === 'home' || currentView === 'category') && !isAdminLoggedIn" class="promo-slider">
+      <div class="slider-container">
+        <div v-for="(slide, index) in promoSlides" :key="index" 
+              class="slide" :class="{ active: currentSlide === index }">
+          <img :src="slide.image" class="slide-img" />
+          <div class="slide-overlay">
+            <div class="slide-content">
+              <h2 class="promo-title">{{ slide.title }}</h2>
+              <p class="promo-subtitle">{{ slide.subtitle }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="slider-dots">
+          <span v-for="(s, i) in promoSlides" :key="i" 
+                  @click="currentSlide = i" 
+                  :class="{ dot: true, active: currentSlide === i }"></span>
+        </div>
+      </div>
+    </section>
+
+    <div v-if="showAdminModal" class="modal-overlay">
+      <div class="login-card">
+        <h2>🔒 Вход Админ</h2>
+        <div class="login-form">
+          <input v-model="adminCredentials.username" placeholder="Потребител" class="login-input" />
+          <input v-model="adminCredentials.password" type="password" placeholder="Парола" class="login-input" />
+          <div class="modal-buttons">
+            <button @click="loginAdmin" class="btn-submit">Влез</button>
+            <button @click="showAdminModal = false" class="btn-cancel">Отказ</button>
+          </div>
+          <p v-if="adminLoginError" class="error-text">❌ Грешни данни за достъп!</p>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showUserModal" class="modal-overlay">
+      <div class="login-card">
+        <div class="modal-tabs">
+          <span :class="{ active: loginMode === 'login' }" @click="loginMode = 'login'">Вход</span>
+          <span :class="{ active: loginMode === 'register' }" @click="loginMode = 'register'">Регистрация</span>
+        </div>
+        <div v-if="loginMode === 'login'" class="login-form">
+          <h2>👤 Вход за потребители</h2>
+          <input v-model="userCredentials.username" placeholder="Потребител" class="login-input" />
+          <input v-model="userCredentials.password" type="password" placeholder="Парола" class="login-input" />
+          <div class="modal-buttons">
+            <button @click="loginUser" class="btn-submit">Влез</button>
+            <button @click="showUserModal = false" class="btn-cancel">Отказ</button>
+          </div>
+          <p v-if="userLoginError" class="error-text">❌ Грешни данни или несъществуващ профил!</p>
+        </div>
+        <div v-if="loginMode === 'register'" class="login-form">
+          <h2>📝 Регистрация</h2>
+          <input v-model="registerCredentials.username" placeholder="Потребител" class="login-input" />
+          <input v-model="registerCredentials.email" type="email" placeholder="Имейл адрес" class="login-input" />
+          <input v-model="registerCredentials.password" type="password" placeholder="Парола" class="login-input" />
+          <div class="modal-buttons">
+            <button @click="registerUser" class="btn-submit">Регистрирай се</button>
+            <button @click="showUserModal = false" class="btn-cancel">Отказ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showEditModal" class="modal-overlay">
+      <div class="login-card">
+        <h2>✏️ Редакция на продукт</h2>
+        <div class="login-form">
+          <input v-model="editingProduct.name" placeholder="Име на продукта" class="login-input" />
+          <input v-model.number="editingProduct.price" type="number" placeholder="Цена €" class="login-input" />
+          <input v-model="editingProduct.imageUrl" placeholder="Линк към снимка" class="login-input" />
+          <div class="modal-buttons">
+            <button @click="saveProductEdit" class="btn-submit">Запази</button>
+            <button @click="showEditModal = false" class="btn-cancel">Отказ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showCart && !isAdminLoggedIn" class="cart-overlay-drawer" @click.self="showCart = false">
+      <div class="cart-drawer">
+        <div class="cart-header">
+          <h3>Вашата количка</h3>
+          <button @click="showCart = false" class="close-btn">✕</button>
+        </div>
+        <div v-if="cart.length === 0" class="empty-cart-msg">
+          <p>Количката е празна.</p>
+          <button @click="showCart = false" class="btn-continue-shopping">Към магазина</button>
+        </div>
+        <div v-else class="cart-items">
+          <div v-for="(item, index) in cart" :key="index" class="cart-item">
+            <img :src="item.imageUrl || 'https://placehold.co/300x300?text=No+Image'" class="cart-item-img" />
+            <div class="cart-item-info">
+              <p class="cart-item-name">{{ item.name }}</p>
+              <p class="cart-item-price">{{ item.price }} €</p>
+            </div>
+            <button @click="removeFromCart(index)" class="btn-remove-item">✕</button>
+          </div>
+        </div>
+        <div class="cart-footer-drawer" v-if="cart.length > 0">
+          <div class="total">Общо: {{ cartTotal }} €</div>
+          <button class="btn-checkout" @click="startCheckout">ПОРЪЧАЙ</button>
+        </div>
+      </div>
+    </div>
+
+    <main class="content">
+      <section v-if="isAdminLoggedIn && currentView === 'home'" class="admin-section card">
+        <h3>➕ Добавяне на нов артикул</h3>
+        <div class="form-grid">
+          <input v-model="newProduct.name" placeholder="Име на продукта" />
+          <input v-model.number="newProduct.price" type="number" placeholder="Цена €" />
+          <input v-model="newProduct.imageUrl" placeholder="Линк към снимка" />
+          <select v-model="newProduct.category">
+            <option value="Хранителни добавки">Хранителни добавки</option>
+            <option value="Фитнес уреди">Фитнес уреди</option>
+            <option value="Фитнес облекло">Фитнес облекло</option>
+            <option value="Аксесоари">Аксесоари</option>
+          </select>
+          <textarea v-model="newProduct.description" placeholder="Описание..." rows="3"></textarea>
+          <button @click="addProduct" class="btn-add">ЗАПИШИ В БАЗАТА</button>
+        </div>
+      </section>
+
+    <div v-if="currentView === 'checkout'" class="checkout-container">
+        
+        <div v-if="orderSuccess" class="checkout-success card" style="text-align: center; padding: 50px;">
+          <h2 style="color: #4CAF50; font-size: 2rem;">✅ Поръчката ви е приета!</h2>
+          <p style="margin-top: 15px; font-size: 1.1rem;">Благодарим ви, че избрахте Fitt2.bg. Ще се свържем с вас скоро за потвърждение.</p>
+          <button @click="finishCheckout" class="btn-buy" style="margin-top: 30px; padding: 10px 20px;">Към магазина</button>
+        </div>
+        
+        <div v-else class="checkout-form card" style="max-width: 600px; margin: 0 auto; padding: 30px;">
+          <h2 style="text-align: center; margin-bottom: 20px;">📦 Данни за доставка</h2>
+          
+          <div class="form-grid" style="grid-template-columns: 1fr; gap: 15px;">
+            <input v-model="orderDetails.name" placeholder="Име и фамилия" class="login-input" />
+            <input v-model="orderDetails.phone" placeholder="Телефонен номер" class="login-input" />
+            
+            <select v-model="orderDetails.shippingMethod" class="login-input" style="padding: 10px; border-radius: 4px; border: 1px solid #ccc; background: white;">
+              <option value="econt-office">Еконт - до офис</option>
+              <option value="econt-address">Еконт - до личен адрес</option>
+              <option value="speedy-office">Спиди - до офис</option>
+              <option value="speedy-address">Спиди - до личен адрес</option>
+            </select>
+            
+            <textarea v-model="orderDetails.address" placeholder="Въведете точен адрес или име/код на офис на куриер..." rows="3" class="login-input" style="padding: 10px; border-radius: 4px; border: 1px solid #ccc; font-family: inherit;"></textarea>
+            
+            <div style="font-size: 1.3rem; font-weight: bold; text-align: right; margin-top: 15px; color: #333;">
+              Общо за плащане: {{ cartTotal }} €
+            </div>
+            
+            <div class="modal-buttons" style="justify-content: flex-end; margin-top: 20px;">
+              <button @click="submitOrder" class="btn-submit">ПОРЪЧАЙ</button>
+              <button @click="currentView = 'home'" class="btn-cancel">Отказ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="currentView === 'favorites'">
+        <h2 class="view-title">Любими продукти</h2>
+        <div v-if="wishlist.length === 0" style="text-align:center; padding: 40px;">
+          <p>Все още нямате любими продукти.</p>
+          <button @click="resetView" class="btn-back">Назад към магазина</button>
+        </div>
+        <div class="product-grid">
+          <div v-for="p in wishlist" :key="p.id" class="product-card">
+            <div class="img-container">
+              <img :src="p.imageUrl || 'https://placehold.co/300x200?text=No+Image'" />
+              <button @click="toggleWishlist(p)" class="product-heart-btn active">❤</button>
+            </div>
+            <div class="product-info">
+              <h4>{{ p.name }}</h4>
+              
+              <div class="star-rating-container">
+                <div class="star-rating"
+                     @mousemove="handleStarMousemove($event, p)"
+                     @mouseleave="handleStarMouseleave(p)"
+                     @click="setRating(p)">
+                  <div class="stars-empty">★★★★★</div>
+                  <div class="stars-filled" :style="{ width: ((p.hoverRating || p.rating || 0) / 5 * 100) + '%' }">
+                    ★★★★★
+                  </div>
+                </div>
+                <span class="rating-value">{{ (p.hoverRating || p.rating || 0).toFixed(1) }}</span>
+              </div>
+              
+              <div class="product-footer">
+                <span class="price">{{ p.price }} €</span>
+                <button @click="addToCart(p)" class="btn-buy">КУПИ</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="currentView === 'home' || currentView === 'category'">
+        <div class="catalog-header">
+          <h2 class="view-title">{{ currentView === 'home' ? 'Каталог' : selectedFilter }}</h2>
+          <div class="sort-container">
+            <label>Подреди по:</label>
+            <select v-model="sortBy" class="sort-select">
+              <option value="default">Най-нови</option>
+              <option value="price-asc">Цена: Възходяща</option>
+              <option value="price-desc">Цена: Низходяща</option>
+              <option value="rating-desc">Най-добра оценка</option>
+              <option value="rating-asc">Най-лоша оценка</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="product-grid">
+          <div v-for="p in filteredAndSortedProducts" :key="p.id" class="product-card">
+            <div class="img-container">
+              <img :src="p.imageUrl || 'https://placehold.co/300x200?text=No+Image'" />
+              <span class="badge">{{ p.category }}</span>
+              <button v-if="!isAdminLoggedIn" @click="toggleWishlist(p)" 
+                       class="product-heart-btn" :class="{ active: isInWishlist(p) }">❤</button>
+            </div>
+            <div class="product-info">
+              <h4>{{ p.name }}</h4>
+              
+              <div class="star-rating-container">
+                <div class="star-rating"
+                     @mousemove="handleStarMousemove($event, p)"
+                     @mouseleave="handleStarMouseleave(p)"
+                     @click="setRating(p)">
+                  <div class="stars-empty">★★★★★</div>
+                  <div class="stars-filled" :style="{ width: ((p.hoverRating || p.rating || 0) / 5 * 100) + '%' }">
+                    ★★★★★
+                  </div>
+                </div>
+                <span class="rating-value">{{ (p.hoverRating || p.rating || 0).toFixed(1) }}</span>
+              </div>
+
+              <p class="product-desc">{{ p.description }}</p>
+              <div class="product-footer">
+                <span class="price">{{ p.price }} €</span>
+                <div class="action-buttons">
+                  <button v-if="!isAdminLoggedIn" @click="addToCart(p)" class="btn-buy">КУПИ</button>
+                  <button v-if="isAdminLoggedIn" @click="editProduct(p)" class="btn-edit">✏️ Редактирай</button>
+                  <button v-if="isAdminLoggedIn" @click="deleteProduct(p.id)" class="btn-delete">🗑️ Изтрий</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div v-if="filteredAndSortedProducts.length === 0" class="no-results">
+          <p>Няма намерени продукти в тази категория.</p>
+        </div>
+      </div>
+    </main>
+
+    <footer class="main-footer">
+      <div class="footer-container">
+        <div class="footer-col">
+          <h3>Fitt2.bg</h3>
+          <p>Вашата дестинация за качествени хранителни добавки и фитнес оборудване.</p>
+          <div class="social-links">
+            <span>FB</span> <span>IG</span> <span>YT</span>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h4>Бързи връзки</h4>
+          <ul>
+            <li @click="resetView">Начало</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        &copy; 2026 Fitt2.bg. Всички права запазени.
+      </div>
+    </footer>
+</div>
