@@ -18,7 +18,7 @@ const promoSlides = ref([
   },
   { 
     image: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=1470&auto=format&fit=crop', 
-    title: 'ПРОМОКОД: FITT2', 
+    title: 'ПРОМОКОД: FIT2', 
     subtitle: '' 
   },
   { 
